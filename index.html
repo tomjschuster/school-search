@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>School Search</title>
+  <style>
+    #map {
+      height: 100%;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    main {
+      height: 100%;
+    }
+    .hide {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>School Search</h1>
+  </header>
+  <main>
+    <form id='search-form' onsubmit='search(event)'>
+      <input id='search-input' type='text' />
+      <label for='search-param'>
+        Search By
+        <select id='search-param'>
+          <option value='school.state' selected>State</option>
+          <option value='school.name'>Name</option>
+        </select>
+      </label>
+      <button id='search-btn' type='submit'>Search</button>
+      <button id='clear-btn' type='button' onclick='clearResults()' disabled>
+        Clear Results
+      </button>
+    </form>
+    <table id='results-table'>
+      <thead>
+        <tr>
+          <th>School Name</th>
+          <th>City</th>
+          <th>State</th>
+          <th>Students</th>
+          <th>Admission Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div id='map' class='hide'></div>
+  </main>
+  <script>
+    const API_KEY = 'gJl21qJxiPSLr54H3eUpbnLnoym9yOR84aiP6HeI'
+    const baseUrl = `https://api.data.gov/ed/collegescorecard/v1/schools?api_key=${API_KEY}`
+
+    const selectFields = [
+      'school.name',
+      'school.school_url',
+      'location.lat',
+      'location.lon',
+      'school.state',
+      'school.city',
+      '2015.student.size',
+      '2015.admissions.admission_rate.overall'
+    ]
+
+    const showFields = [
+      { href: 'school.school_url', value: 'school.name' },
+      'school.state',
+      'school.city',
+      '2015.student.size',
+      '2015.admissions.admission_rate.overall'
+    ]
+
+    const infoTableFields = [
+      { href: 'school.school_url', value: 'school.school_url' },
+      'school.state',
+      'school.city',
+      '2015.student.size',
+      '2015.admissions.admission_rate.overall'
+    ]
+
+    const fieldDisplay = {
+      'school.school_url': 'Website',
+      'school.state': 'State',
+      'school.city': 'City',
+      '2015.student.size': 'Students',
+      '2015.admissions.admission_rate.overall': 'Admission Rate'
+    }
+
+    function buildUrl(params, sortBy = '2015.student.size:desc') {
+      const searchString = Object.entries(params).reduce((acc, [k, v]) => `${acc}&${k}=${v}`, '')
+      return `${baseUrl}${searchString}&fields=${selectFields.join(',') }&_sort=${sortBy}`
+    }
+
+    function search(event) {
+      event.preventDefault()
+      const input = document.getElementById('search-input')
+      const searchBy = document.getElementById('search-param').value
+      fetch(buildUrl({ [searchBy]: input.value })).then(res => res.json()).then(setResults)
+    }
+
+    function setResults({ results }) {
+      if (results.length) {
+        document.getElementById('clear-btn').disabled = false
+        document.getElementById('map').classList.remove('hide')
+      }
+      const tbody = document.querySelector('#results-table tbody')
+      removeResults(tbody)
+      removeMarkers()
+      results.forEach(result => {
+        appendResult(tbody, result)
+        setMarker(result)
+      })
+      fitMarkersOnMap()
+
+    }
+
+    function removeResults(tbody) {
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild)
+    }
+
+    function clearResults() {
+      const tbody = document.querySelector('#results-table tbody')
+      removeResults(tbody)
+      removeMarkers()
+      document.getElementById('clear-btn').disabled = true
+      document.getElementById('map').classList.add('hide')
+    }
+
+    function appendResult(tbody, result) {
+      const data = showFields.map(field =>
+        field.href
+          ? { href : result[field.href], value: result[field.value] }
+          : result[field]
+      )
+
+      tbody.appendChild(tr(data))
+    }
+
+    function tr(data) {
+      const row = document.createElement('tr')
+      data.forEach(item => row.appendChild(td(item)))
+      return row
+    }
+
+    function td(item) {
+      const cell = document.createElement('td')
+      if (item && item.href) {
+        const a = document.createElement('a')
+        const txt = document.createTextNode(item.value)
+        a.appendChild(txt)
+        a.href = `https://${item.href}`
+        a.target = '_blank'
+        cell.appendChild(a)
+      } else if (item) {
+        const txt = document.createTextNode(item)
+        cell.appendChild(txt)
+      }
+      return cell
+    }
+
+    function infoTable(data, title) {
+      const table = document.createElement('table')
+
+      const thead = document.createElement('thead')
+      const headerRow = document.createElement('trow')
+      const headerCell = document.createElement('th')
+      const titleTxt = document.createTextNode(title)
+      headerCell.appendChild(titleTxt)
+      headerRow.appendChild(headerCell)
+      thead.appendChild(headerRow)
+      table.appendChild(thead)
+
+      const tbody = document.createElement('tbody')
+
+      data.forEach(item => {
+        const row = document.createElement('tr')
+        const keyCell = document.createElement('td')
+        const keyTxt = document.createTextNode(item.key)
+        keyCell.appendChild(keyTxt)
+        row.appendChild(keyCell)
+
+        const valueCell = document.createElement('td')
+        if (item && item.href) {
+          const a = document.createElement('a')
+          const txt = document.createTextNode(item.value)
+          a.appendChild(txt)
+          a.href = `https://${item.href}`
+          a.target = '_blank'
+          valueCell.appendChild(a)
+        } else if (item.value) {
+          const txt = document.createTextNode(item.value)
+          valueCell.appendChild(txt)
+        }
+
+        row.appendChild(valueCell)
+        tbody.appendChild(row)
+      })
+      table.appendChild(tbody)
+
+      return table
+    }
+
+    let map
+    function initMap() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: {lat: 40.7128, lng: -74.0060},
+        zoom: 11
+      })
+    }
+
+    let markers = []
+    function setMarker(result) {
+      const marker = new google.maps.Marker({
+        position: {lat: result['location.lat'], lng: result['location.lon'] },
+        map: map,
+        title: result['school.name']
+      })
+
+      markers.push(marker)
+      addInfoWindow(marker, result)
+    }
+
+    function fitMarkersOnMap() {
+      const bounds = new google.maps.LatLngBounds()
+      markers.forEach(marker => bounds.extend(marker.getPosition()))
+      map.fitBounds(bounds)
+    }
+
+    function removeMarkers() {
+      markers.forEach(marker => marker.setMap(null))
+      markers = []
+    }
+
+    let openWindow
+    function addInfoWindow(marker, result) {
+      const data = infoTableFields.map(field =>
+        field.href
+          ? { href : result[field.href], key: fieldDisplay[field.value], value: result[field.value] }
+          : { key: fieldDisplay[field], value: result[field] }
+      )
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: infoTable(data, result['school.name'])
+      })
+
+      marker.addListener('click', function(evt){
+        console.log(evt.Ha.stopPropagation())
+        if (openWindow) openWindow.close()
+        openWindow = infoWindow
+        infoWindow.open(map, marker)
+      })
+    }
+
+    document.addEventListener('click', function() {
+      if (openWindow) {
+        openWindow.close()
+        openWindow = null
+      }
+    })
+  </script>
+  <script
+    src='https://maps.googleapis.com/maps/api/js?key=API_KEY&callback=initMap'
+    async
+    defer
+  >
+  </script>
+</body>
+</html>
