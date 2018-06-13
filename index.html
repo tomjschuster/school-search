@@ -36,7 +36,7 @@
       <label for='per-page'>
         Results Per Page
         <select id='per-page'>
-          <option value='25' selected>25</option>
+          <option value='20' selected>20</option>
           <option value='50'>50</option>
           <option value='100'>100</option>
         </select>
@@ -65,7 +65,7 @@
   </main>
   <script>
     // Config
-    const API_KEY = 'API_KEY'
+    const API_KEY = 'gJl21qJxiPSLr54H3eUpbnLnoym9yOR84aiP6HeI'
     const baseUrl = `https://api.data.gov/ed/collegescorecard/v1/schools?api_key=${API_KEY}`
 
     const selectFields = [
@@ -324,6 +324,7 @@
       })
 
       marker.addListener('click', function(evt){
+        evt.Ha.stopPropagation()
         if (openWindow) openWindow.close()
         openWindow = infoWindow
         infoWindow.open(map, marker)
