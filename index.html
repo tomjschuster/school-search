@@ -33,11 +33,20 @@
           <option value='school.name'>Name</option>
         </select>
       </label>
+      <label for='per-page'>
+        Results Per Page
+        <select id='per-page'>
+          <option value='25' selected>25</option>
+          <option value='50'>50</option>
+          <option value='100'>100</option>
+        </select>
+      </label>
       <button id='search-btn' type='submit'>Search</button>
       <button id='clear-btn' type='button' onclick='clearResults()' disabled>
         Clear Results
       </button>
     </form>
+    <div id='results'>
     <table id='results-table'>
       <thead>
         <tr>
@@ -51,10 +60,12 @@
       <tbody>
       </tbody>
     </table>
+    </div>
     <div id='map' class='hide'></div>
   </main>
   <script>
-    const API_KEY = 'gJl21qJxiPSLr54H3eUpbnLnoym9yOR84aiP6HeI'
+    // Config
+    const API_KEY = 'API_KEY'
     const baseUrl = `https://api.data.gov/ed/collegescorecard/v1/schools?api_key=${API_KEY}`
 
     const selectFields = [
@@ -92,44 +103,95 @@
       '2015.admissions.admission_rate.overall': 'Admission Rate'
     }
 
+
+    // API
     function buildUrl(params, sortBy = '2015.student.size:desc') {
       const searchString = Object.entries(params).reduce((acc, [k, v]) => `${acc}&${k}=${v}`, '')
       return `${baseUrl}${searchString}&fields=${selectFields.join(',') }&_sort=${sortBy}`
     }
 
-    function search(event) {
-      event.preventDefault()
-      const input = document.getElementById('search-input')
-      const searchBy = document.getElementById('search-param').value
-      fetch(buildUrl({ [searchBy]: input.value })).then(res => res.json()).then(setResults)
+    function fetchResults(searchBy, value, perPage, page) {
+      const url = buildUrl({ [searchBy]: value, per_page: perPage, page })
+      return fetch(url).then(res => res.status === 200 ? res.json() : Promise.reject(res))
     }
 
-    function setResults({ results }) {
+
+    // Results
+    function search(event) {
+      event.preventDefault()
+      getResults(0)
+    }
+
+    function getResults(page = 0) {
+      const searchValue = document.getElementById('search-input').value
+      const searchBy = document.getElementById('search-param').value
+      const perPage = document.getElementById('per-page').value
+      fetchResults(searchBy, searchValue, perPage, page).then(setResults)
+    }
+
+
+    function setResults({ results, metadata }) {
+      clearResults()
+
       if (results.length) {
         document.getElementById('clear-btn').disabled = false
         document.getElementById('map').classList.remove('hide')
       }
-      const tbody = document.querySelector('#results-table tbody')
-      removeResults(tbody)
-      removeMarkers()
-      results.forEach(result => {
-        appendResult(tbody, result)
-        setMarker(result)
-      })
-      fitMarkersOnMap()
 
+      appendResults(results)
+      fitMarkersOnMap()
+      renderNextBtn(metadata)
+      renderPrevBtn(metadata.page)
     }
 
-    function removeResults(tbody) {
+    function removeResults() {
+      const tbody = document.querySelector('#results-table tbody')
       while (tbody.firstChild) tbody.removeChild(tbody.firstChild)
     }
 
     function clearResults() {
-      const tbody = document.querySelector('#results-table tbody')
-      removeResults(tbody)
+      removeResults()
       removeMarkers()
       document.getElementById('clear-btn').disabled = true
       document.getElementById('map').classList.add('hide')
+    }
+
+    function renderNextBtn({ page, per_page : perPage, total }) {
+      const resultsDiv = document.getElementById('results')
+      const nextBtn = document.getElementById('next-btn')
+      const prevBtn = document.getElementById('prev-btn')
+      const show = (page + 1) * perPage < total
+      if (show && nextBtn)
+          nextBtn.onclick = () => getResults(page + 1)
+      if (show && !nextBtn) {
+        if (prevBtn) {
+          resultsDiv.insertBefore(button('next-btn', 'Next', () => getResults(page + 1)), prevBtn.nextSibling)
+
+        } else {
+          resultsDiv.prepend(button('next-btn', 'Next', () => getResults(page + 1)))
+        }
+      }
+      if (!show && nextBtn)
+          nextBtn.remove()
+    }
+
+  function renderPrevBtn(page) {
+    const resultsDiv = document.getElementById('results')
+    const prevBtn = document.getElementById('prev-btn')
+    if (page > 0 && prevBtn)
+        prevBtn.onclick = () => getResults(page - 1)
+    if (page > 0 && !prevBtn)
+      resultsDiv.prepend(button('prev-btn', 'Prev', () => getResults(page - 1)))
+    if (page === 0 && prevBtn)
+      prevBtn.remove()
+  }
+
+    function appendResults(results) {
+      const tbody = document.querySelector('#results-table tbody')
+      results.forEach(result => {
+        appendResult(tbody, result)
+        setMarker(result)
+      })
     }
 
     function appendResult(tbody, result) {
@@ -140,6 +202,16 @@
       )
 
       tbody.appendChild(tr(data))
+    }
+
+    // DOM
+    function button(id, label, onClick) {
+      const btn = document.createElement('button')
+      btn.id = id
+      const txt = document.createTextNode(label)
+      btn.appendChild(txt)
+      btn.onclick = onClick
+      return btn
     }
 
     function tr(data) {
@@ -206,6 +278,8 @@
       return table
     }
 
+    // Map
+
     let map
     function initMap() {
       map = new google.maps.Map(document.getElementById('map'), {
@@ -250,7 +324,6 @@
       })
 
       marker.addListener('click', function(evt){
-        console.log(evt.Ha.stopPropagation())
         if (openWindow) openWindow.close()
         openWindow = infoWindow
         infoWindow.open(map, marker)
@@ -265,7 +338,7 @@
     })
   </script>
   <script
-    src='https://maps.googleapis.com/maps/api/js?key=API_KEY&callback=initMap'
+    src='https://maps.googleapis.com/maps/api/js?key=AIzaSyA_FKHUgeRSSkajmBSELNW5Z6ITgKpfRm8&callback=initMap'
     async
     defer
   >
