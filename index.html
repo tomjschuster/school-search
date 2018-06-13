@@ -24,30 +24,30 @@
     <h1>School Search</h1>
   </header>
   <main>
-    <form id='search-form' onsubmit='search(event)'>
-      <input id='search-input' type='text' />
-      <label for='search-param'>
+    <form id="search-form" onsubmit="search(event)">
+      <input id="search-input" type="text" />
+      <label for="search-param">
         Search By
-        <select id='search-param'>
-          <option value='school.state' selected>State</option>
-          <option value='school.name'>Name</option>
+        <select id="search-param">
+          <option value="school.state" selected>State</option>
+          <option value="school.name">Name</option>
         </select>
       </label>
-      <label for='per-page'>
+      <label for="per-page">
         Results Per Page
-        <select id='per-page'>
-          <option value='20' selected>20</option>
-          <option value='50'>50</option>
-          <option value='100'>100</option>
+        <select id="per-page">
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
         </select>
       </label>
-      <button id='search-btn' type='submit'>Search</button>
-      <button id='clear-btn' type='button' onclick='clearResults()' disabled>
+      <button id="search-btn" type="submit">Search</button>
+      <button id="clear-btn" type="button" onclick="clearResults()" disabled>
         Clear Results
       </button>
     </form>
-    <div id='results'>
-    <table id='results-table'>
+    <div id="results">
+    <table id="results-table">
       <thead>
         <tr>
           <th>School Name</th>
@@ -61,12 +61,12 @@
       </tbody>
     </table>
     </div>
-    <div id='map' class='hide'></div>
+    <div id="map" class="hide"></div>
   </main>
   <script>
     // Config
     const API_KEY = 'gJl21qJxiPSLr54H3eUpbnLnoym9yOR84aiP6HeI'
-    const baseUrl = `https://api.data.gov/ed/collegescorecard/v1/schools?api_key=${API_KEY}`
+    const baseUrl = `https://api.data.gov/ed/collegescorecard/v1/schools?api_ey=${API_KEY}`
 
     const selectFields = [
       'school.name',
@@ -126,12 +126,15 @@
       const searchValue = document.getElementById('search-input').value
       const searchBy = document.getElementById('search-param').value
       const perPage = document.getElementById('per-page').value
-      fetchResults(searchBy, searchValue, perPage, page).then(setResults)
+      fetchResults(searchBy, searchValue, perPage, page)
+        .then(setResults)
+        .catch(() => setError('Sorry. Something went wrong.'))
     }
 
 
     function setResults({ results, metadata }) {
       clearResults()
+      clearError()
 
       if (results.length) {
         document.getElementById('clear-btn').disabled = false
@@ -202,6 +205,26 @@
       )
 
       tbody.appendChild(tr(data))
+    }
+
+    function setError(error) {
+      const errorP = document.querySelector('#error p')
+      const errorTxt = document.createTextNode(error)
+      if (errorP) {
+        errorP.appendChild(txt)
+      } else {
+        const div = document.createElement('div')
+        div.id = 'error'
+        const p = document.createElement('p')
+        div.appendChild(p)
+        p.appendChild(errorTxt)
+        document.querySelector('main').prepend(div)
+      }
+    }
+
+    function clearError() {
+      const errorDiv = document.getElementById('error')
+      if (errorDiv) errorDiv.remove()
     }
 
     // DOM
